@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#0D1015">
+<meta name="theme-color" content="#22302B">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Seria">
@@ -12,14 +12,14 @@
 <title>Seria – planer treningowy</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link id="skinfonts" rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@100..125,400..800&display=swap">
+<link id="skinfonts" rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Caveat:wght@400..700&family=Libre+Franklin:wght@400..700&display=swap">
 <script>
 // skórka ustawiana przed pierwszym malowaniem, żeby nie mrugało
 (function(){ try { var s = JSON.parse(localStorage.getItem("seria.v1") || "null"), st = (s && s.settings) || {};
-  var skin = st.skin || "talerze", t = st.theme || "auto";
+  var skin = st.skinPicked && st.skin ? st.skin : "zeszyt", t = st.skinPicked ? (st.theme || "auto") : "dark";
   var dark = skin === "zegarek" || t === "dark" || (t === "auto" && window.matchMedia && matchMedia("(prefers-color-scheme: dark)").matches);
   document.documentElement.setAttribute("data-skin", skin); document.documentElement.setAttribute("data-mode", dark ? "dark" : "light");
-  var f = {zeszyt:"family=Caveat:wght@400..700&family=Libre+Franklin:wght@400..700", zegarek:"family=Chakra+Petch:wght@500;600;700&family=Manrope:wght@400..800"}[skin];
+  var f = {talerze:"family=Archivo:wdth,wght@100..125,400..800", zegarek:"family=Chakra+Petch:wght@500;600;700&family=Manrope:wght@400..800"}[skin];
   if (f) document.getElementById("skinfonts").setAttribute("href", "https://fonts.googleapis.com/css2?" + f + "&display=swap");
 } catch (e) { document.documentElement.setAttribute("data-skin", "talerze"); } })();
 </script>
@@ -71,7 +71,7 @@ html[data-skin="zeszyt"][data-mode="dark"]{
   --bg:#22302B; --surface:#26352F; --surface-2:#2E3E38; --line:rgba(237,237,228,.22); --grid:rgba(255,255,255,.045); --margin:transparent;
   --ink:#EDEDE4; --muted:#A9B5AE; --accent:#FFD84D; --accent-ink:#22302B; --accent-soft:rgba(255,216,77,.22); --hl:rgba(255,216,77,.32);
   --blue:#9CC4FF; --good:#9BE38A; --good-soft:rgba(155,227,138,.16); --warn:#FFB74D; --live:#FF8A80;
-  --card-line:rgba(237,237,228,.55); --tierA:#7FA8FF; --tierB:#87938D; --tierC:#6C7873;
+  --card-line:rgba(237,237,228,.55); --tierS:#FF8A80; --tierA:#8FB4FF; --tierB:#A9B5AE; --tierC:#7D8A84;
   color-scheme:dark;
 }
 html[data-skin="zegarek"]{
@@ -92,6 +92,7 @@ html[data-skin="zegarek"]{
 }
 *{box-sizing:border-box}
 [hidden]{display:none!important}
+input[type=checkbox]{accent-color:var(--accent)}
 html,body{height:100%}
 body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 var(--font-b);-webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent}
 button,input,select,textarea{font:inherit;color:inherit}
@@ -731,7 +732,7 @@ const LS_KEY = "seria.v1";
 const now = () => Date.now();
 function defaultProfile(){ return {weekdays:[1,3,5], goal:"masa", level:2, equip:EQ.map(e => e.k), duration:60, split:"auto", priority:[], t:0}; }
 function initState(){
-  const s = {v:1, settings:{bar:20, sound:true, theme:"auto", restMode:"auto", t:0}, profile:defaultProfile(), plan:null, user:null,
+  const s = {v:1, settings:{bar:20, sound:true, theme:"dark", skin:"zeszyt", skinPicked:true, restMode:"auto", t:0}, profile:defaultProfile(), plan:null, user:null,
     notes:{}, bw:{}, sessions:{}, active:{t:0, s:null}, custom:null};
   s.plan = makePlan(s.profile, 20261104); s.plan.t = 0; s.plan.example = true;
   return s;
@@ -1289,7 +1290,6 @@ function viewToday(){
   const todayDone = sessionsSorted().filter(s => dkey(new Date(s.date)) === dkey(d));
   const lt = lastTrained();
   let h = `<div class="stack" style="gap:2px;padding-top:6px"><span class="eyebrow">${DAYS[wd - 1]}</span><h1>${d.getDate()} ${MON[d.getMonth()]}</h1></div>`;
-  if (!S.settings.skinPicked && !S.active.s) h += `<div class="card"><div class="stack" style="gap:4px"><h3>Nowy wygląd aplikacji</h3><p class="small muted">Wybierz styl. Zmiana działa od razu, więc możesz przełączać i porównać na tym ekranie.</p></div>${skinPicker().replace(/data-act="skin"/g, 'data-act="skin" data-b="1"')}<button class="btn block" data-act="skin-keep">Zostaję przy: ${SKINS[curSkin()].n}</button><p class="tiny muted">Później zmienisz to w zakładce Asystent → Ustawienia.</p></div>`;
   if (hasUser()) {
     const n = nutrition();
     h += `<button class="daybar" data-act="tab" data-v="asystent">${ic("flame")}<span class="grow"><span class="tiny muted">Cel na dziś · ${esc(UGOALS[S.user.goal].n.toLowerCase())}</span><b>${fmtInt(n.kcal)} kcal</b><span class="tiny muted num">białko ${n.prot} g · tłuszcze ${n.fat} g · węglowodany ${n.carb} g</span></span></button>`;
@@ -2210,7 +2210,7 @@ const SKINS = {
   zegarek:{n:"Zegarek", d:"Ciemny wyświetlacz, cyfry i pierścienie", fonts:"family=Chakra+Petch:wght@500;600;700&family=Manrope:wght@400..800", tc:{light:"#070C1C", dark:"#070C1C"}, dark:true}
 };
 const MQ = window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)") : null;
-const curSkin = () => SKINS[S.settings.skin] ? S.settings.skin : "talerze";
+const curSkin = () => SKINS[S.settings.skin] ? S.settings.skin : "zeszyt";
 function applyTheme(){
   const skin = curSkin(), t = S.settings.theme;
   const dark = !!SKINS[skin].dark || t === "dark" || (t === "auto" && !!(MQ && MQ.matches));
@@ -2469,6 +2469,7 @@ window.addEventListener("hashchange", () => { const h = tabOf(location.hash.slic
   if (!S || S.v !== 1) { S = initState(); firstRun = true; }
   if (S.custom && S.custom.combo) ui.combo = S.custom.combo;
   if (S.user === undefined) S.user = null;
+  if (!S.settings.skinPicked) { S.settings.skin = "zeszyt"; S.settings.theme = "dark"; S.settings.skinPicked = true; S.settings.t = now(); try { localStorage.setItem(LS_KEY, JSON.stringify(S)); } catch (e) {} }
   const h = tabOf(location.hash.slice(1));
   if (h) { ui.tab = h; setHash(h); }
   applyTheme(); render(); tickRest();
