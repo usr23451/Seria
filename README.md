@@ -8,6 +8,8 @@ Na start krótkie wprowadzenie (płeć, wiek, wzrost, waga, cel, aktywność, dn
 Zakładka **Asystent** liczy kalorie (wzór Mifflina-St Jeora), deficyt lub nadwyżkę zależnie od celu,
 białko, tłuszcze i węglowodany, a po 2–3 tygodniach ważenia proponuje korektę kalorii.
 
+Trzy style wyglądu do wyboru (Talerze, Zeszyt, Zegarek) – zmienisz je w **Asystent → Ustawienia**.
+
 Działa w przeglądarce telefonu. Na iPhonie: otwórz stronę w Safari → Udostępnij →
 „Do ekranu początkowego”. Po pierwszym uruchomieniu działa też bez internetu.
 
