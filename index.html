@@ -153,6 +153,7 @@ svg.i{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.9;stro
 .chip{display:inline-flex;align-items:center;gap:6px;min-height:38px;padding:7px 13px;border-radius:var(--r-chip);border:1.5px solid var(--line);background:var(--surface);font-weight:600;font-size:14.5px}
 .chip.on{background:var(--ink);border-color:var(--ink);color:var(--bg)}
 .chip.acc.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.chip.pend{outline:2.5px dashed var(--accent);outline-offset:2px}
 .chip small{font-weight:500;opacity:.75}
 .tag{display:inline-flex;align-items:center;gap:6px;padding:2px 9px;border-radius:var(--r-chip);background:var(--surface-2);border:1px solid var(--line);font-size:12.5px;font-weight:600;color:var(--muted)}
 .tag i,.gchip i{width:8px;height:8px;border-radius:50%;background:var(--gc,var(--muted));flex:none}
@@ -742,7 +743,7 @@ function initState(){
 }
 let S = null;
 let firstRun = false;
-const ui = {tab:"dzis", libG:"all", libQ:"", libAvail:true, planEdit:false, open:{}, histOpen:{}, customDur:60, customSel:[], combo:null};
+const ui = {dayPending:null, tab:"dzis", libG:"all", libQ:"", libAvail:true, planEdit:false, open:{}, histOpen:{}, customDur:60, customSel:[], combo:null};
 
 function persist(){ try { localStorage.setItem(LS_KEY, JSON.stringify(S)); } catch (e) {} Cloud.schedule(); }
 function touch(sec){ if (S[sec] && typeof S[sec] === "object") S[sec].t = now(); persist(); }
@@ -1556,7 +1557,7 @@ function viewPlan(){
       h += `<div class="dayrow">${tag}<div class="card">
         <button class="row between" data-act="day-open" data-i="${i}" style="width:100%;text-align:left;align-items:flex-start"><div class="stack" style="gap:3px"><h3>${esc(pd.name)}</h3><span class="small muted num">${pd.items.length} ${plural(pd.items.length, ["ćwiczenie","ćwiczenia","ćwiczeń"])} · ${nSer(pd.items.reduce((a, x) => a + x.sets, 0))} · ok. ${estMin(pd.items)} min</span>${doneLine(d)}</div>${ic(open ? "up" : "down")}</button>
         ${open ? `<div class="field"><span class="flabel">Przenieś na inny dzień</span><div class="chips">${DSH.map((n, k) => { const occ = plan.days.find(x => x.wd === k + 1); const sw = occ && occ !== pd; return `<button class="chip ${pd.wd === k + 1 ? "on" : ""}" data-act="day-move" data-i="${i}" data-v="${k + 1}" aria-pressed="${pd.wd === k + 1}" aria-label="${DAYS[k]}${sw ? ", zamiana z: " + esc(occ.name) : ""}">${n}${sw ? " ⇄" : ""}</button>`; }).join("")}</div><span class="tiny muted">Dzień z ⇄ ma już trening – wtedy treningi zamienią się miejscami.</span></div>${setsByGroup(pd.items)}<div class="exlist">${pd.items.map((it, j) => exRow(it, {swap:`plan:${i}:${j}`})).join("")}</div>${wuButton(pd.items, "plan:" + i)}<button class="btn primary block" data-act="start-plan" data-d="${i}">${ic("play")}Rozpocznij</button>` :
-          `<div class="chips">${[...new Set(pd.items.map(it => EXM[it.ex] && EXM[it.ex].g))].filter(Boolean).map(g => `<span class="tag" style="--gc:var(--g-${g})"><i></i>${gname(g)}</span>`).join("")}</div>`}
+          `<div class="chips">${[...new Set(pd.items.map(it => EXM[it.ex] && EXM[it.ex].g))].filter(Boolean).map(g => `<span class="tag" style="--gc:var(--g-${g})"><i></i>${gname(g)}</span>`).join("")}</div><button class="btn sm" data-act="day-moveopen" data-i="${i}" style="align-self:flex-start">⇄ Przenieś na inny dzień</button>`}
       </div></div>`;
     }
     h += `</div>`;
@@ -1582,6 +1583,16 @@ function principles(){
     <li><b>Progresja podwójna:</b> gdy we wszystkich seriach zrobisz górny zakres powtórzeń, aplikacja podpowie większy ciężar.</li>
   </ul></details>`;
 }
+// przeniesienie treningu z dnia na dzień (zajęty dzień = zamiana), ćwiczenia bez zmian
+function movePlanDay(from, to){
+  const plan = S.plan; if (!plan || from === to) { render(); return; }
+  const pd = plan.days.find(x => x.wd === from); if (!pd) { render(); return; }
+  const other = plan.days.find(x => x.wd === to);
+  if (other) other.wd = from;
+  pd.wd = to;
+  S.profile.weekdays = plan.days.map(x => x.wd).sort((a, b) => a - b); touch("profile"); touch("plan");
+  render(); toast(other ? `Zamieniono: ${DAYS[from - 1].toLowerCase()} ↔ ${DAYS[to - 1].toLowerCase()}` : `Przeniesiono: ${DAYS[from - 1].toLowerCase()} → ${DAYS[to - 1].toLowerCase()}`);
+}
 // zmiana dni bez losowania ćwiczeń: gdy liczba dni się zgadza, treningi przechodzą na nowe dni po kolei
 function remapPlanDays(){
   const p = S.profile, plan = S.plan;
@@ -1595,12 +1606,34 @@ function remapPlanDays(){
   touch("plan"); toast(`Przeniesiono trening: ${moved.join(", ")}`);
   return true;
 }
+function dayPendingBox(){
+  const dp = ui.dayPending, plan = S.plan;
+  if (!dp || !plan) return "";
+  const v = dp.v, dn = DAYS[v - 1].toLowerCase(), n = plan.days.length;
+  const short = pd => esc(pd.name.split(" · ")[0]);
+  if (!dp.has) {
+    const src = [...plan.days].sort((a, b) => a.wd - b.wd);
+    return `<div class="card flat" style="gap:10px;border-color:var(--accent)"><b>${DAYS[v - 1]}: co zrobić?</b>
+      <span class="small muted">Przenieś tu jeden z treningów (ćwiczenia zostają te same):</span>
+      <div class="stack" style="gap:6px">${src.map(pd => `<button class="btn block" data-act="pf-move" data-from="${pd.wd}" data-to="${v}" style="justify-content:flex-start">${DAYS[pd.wd - 1]} → ${dn} · ${short(pd)}</button>`).join("")}</div>
+      <button class="btn sm ghost" data-act="pf-count" data-v="${v}" style="align-self:flex-start">Albo dodaj ${n + 1}. trening (nowy plan na ${n + 1} dni)</button>
+      <button class="btn sm ghost" data-act="pf-cancel" style="align-self:flex-start">Anuluj</button></div>`;
+  }
+  const pd = plan.days.find(x => x.wd === v);
+  const free = [1,2,3,4,5,6,7].filter(d => !plan.days.some(x => x.wd === d));
+  return `<div class="card flat" style="gap:10px;border-color:var(--accent)"><b>${DAYS[v - 1]}: ${short(pd)}</b>
+    <span class="small muted">Przenieś ten trening na wolny dzień (ćwiczenia zostają te same):</span>
+    <div class="chips">${free.map(d => `<button class="chip acc" data-act="pf-move" data-from="${v}" data-to="${d}">${DSH[d - 1]}</button>`).join("")}</div>
+    ${n > 1 ? `<button class="btn sm ghost" data-act="pf-count" data-v="${v}" style="align-self:flex-start">Albo usuń ten dzień (nowy plan na ${n - 1} ${plural(n - 1, ["dzień","dni","dni"])})</button>` : ""}
+    <button class="btn sm ghost" data-act="pf-cancel" style="align-self:flex-start">Anuluj</button></div>`;
+}
 function planForm(){
   const p = S.profile;
   const preset = Object.entries(PRESETS).find(([, v]) => v.eq.length === p.equip.length && v.eq.every(k => p.equip.includes(k)));
   return `<div class="stack" style="gap:16px">
-    <div class="field"><span class="flabel">Dni treningowe (${p.weekdays.length})</span><div class="chips">${DSH.map((n, i) => `<button class="chip acc ${p.weekdays.includes(i + 1) ? "on" : ""}" data-act="pf-day" data-v="${i + 1}" aria-pressed="${p.weekdays.includes(i + 1)}">${n}</button>`).join("")}</div>
-      ${S.plan && p.weekdays.length && p.weekdays.length !== S.plan.days.length ? `<div class="warnbox">Zaznaczone dni: ${p.weekdays.length}, a plan ma ${S.plan.days.length} ${plural(S.plan.days.length, ["trening","treningi","treningów"])}. Żeby zmienić liczbę treningów, wygeneruj nowy plan.<div style="margin-top:8px"><button class="btn sm dark" data-act="plan-gen">Wygeneruj plan na ${p.weekdays.length} ${plural(p.weekdays.length, ["dzień","dni","dni"])}</button></div></div>` : `<span class="tiny muted">Zmiana dni od razu przenosi treningi, ćwiczenia zostają te same. Pojedynczy trening przeniesiesz też w karcie dnia poniżej.</span>`}</div>
+    <div class="field"><span class="flabel">Dni treningowe (${p.weekdays.length})</span><div class="chips">${DSH.map((n, i) => `<button class="chip acc ${p.weekdays.includes(i + 1) ? "on" : ""} ${ui.dayPending && ui.dayPending.v === i + 1 ? "pend" : ""}" data-act="pf-day" data-v="${i + 1}" aria-pressed="${p.weekdays.includes(i + 1)}">${n}</button>`).join("")}</div>
+      ${dayPendingBox()}
+      ${S.plan && p.weekdays.length && p.weekdays.length !== S.plan.days.length ? `<div class="warnbox">Zaznaczone dni: ${p.weekdays.length}, a plan ma ${S.plan.days.length} ${plural(S.plan.days.length, ["trening","treningi","treningów"])}. Żeby zmienić liczbę treningów, wygeneruj nowy plan.<div style="margin-top:8px"><button class="btn sm dark" data-act="plan-gen">Wygeneruj plan na ${p.weekdays.length} ${plural(p.weekdays.length, ["dzień","dni","dni"])}</button></div></div>` : `${ui.dayPending ? "" : `<span class="tiny muted">Stuknij dzień, żeby przenieść na niego trening albo przenieść trening z niego. Ćwiczenia zostają te same.</span>`}`}</div>
     <div class="field"><span class="flabel">Styl treningu</span><div class="seg">${Object.entries(GOALS).map(([k, n]) => `<button class="${p.goal === k ? "on" : ""}" data-act="pf" data-k="goal" data-v="${k}">${n}</button>`).join("")}</div><span class="tiny muted">${hasUser() ? `Twój cel: ${esc(UGOALS[S.user.goal].n.toLowerCase())}. Kalorie i cel sylwetki zmienisz w zakładce Asystent.` : "Budowa mięśni: 6–15 powtórzeń. Siła: cięższe serie 3–8 powtórzeń. Kondycja: więcej powtórzeń, krótsze przerwy."}</span></div>
     <div class="field"><span class="flabel">Doświadczenie</span><div class="seg">${[1,2,3].map(k => `<button class="${p.level === k ? "on" : ""}" data-act="pf" data-k="level" data-v="${k}">${LEVELS[k].replace("Średniozaawansowany","Średni")}</button>`).join("")}</div><span class="tiny muted">${LEVELS[p.level]}: ${LEVEL_HINT[p.level]}. Wpływa na liczbę serii i trudność ćwiczeń.</span></div>
     <label class="row between"><span><b>Cardio na koniec treningu</b><br><span class="small muted">10–25 min roweru, orbitreka lub marszu</span></span><input type="checkbox" id="pfcardio" ${p.cardio ? "checked" : ""} style="width:22px;height:22px"></label>
@@ -2329,17 +2362,26 @@ const ACT = {
     S.notes[d.ex] = {w, r, txt, t:now()}; persist(); toast("Zapisano ciężar"); detailSheet(d.ex); if (ui.tab === "cwiczenia") render();
   },
   // plan
-  "plan-edit": () => { ui.planEdit = !ui.planEdit; render(); },
-  "pf-day": d => { const p = S.profile, v = +d.v; p.weekdays = p.weekdays.includes(v) ? p.weekdays.filter(x => x !== v) : [...p.weekdays, v].sort((a, b) => a - b); touch("profile"); remapPlanDays(); render(); },
-  "day-move": d => {
-    const plan = S.plan, i = +d.i, v = +d.v, pd = plan.days[i];
-    if (!pd || pd.wd === v) return;
-    const other = plan.days.find(x => x.wd === v), from = pd.wd;
-    if (other) other.wd = from;
-    pd.wd = v;
-    S.profile.weekdays = plan.days.map(x => x.wd).sort((a, b) => a - b); touch("profile"); touch("plan");
-    render(); toast(other ? `Zamieniono: ${DAYS[v - 1].toLowerCase()} ↔ ${DAYS[from - 1].toLowerCase()}` : `Przeniesiono na: ${DAYS[v - 1].toLowerCase()}`);
+  "plan-edit": () => { ui.planEdit = !ui.planEdit; ui.dayPending = null; render(); },
+  "pf-day": d => {
+    const p = S.profile, v = +d.v, plan = S.plan;
+    // jest plan i dni się zgadzają: pytamy, co zrobić (przenieść trening czy zmienić liczbę dni)
+    if (plan && plan.days.length && p.weekdays.length === plan.days.length) {
+      ui.dayPending = ui.dayPending && ui.dayPending.v === v ? null : {v, has:plan.days.some(x => x.wd === v)};
+      render(); return;
+    }
+    p.weekdays = p.weekdays.includes(v) ? p.weekdays.filter(x => x !== v) : [...p.weekdays, v].sort((a, b) => a - b); touch("profile"); remapPlanDays(); render();
   },
+  "pf-move": d => { ui.dayPending = null; movePlanDay(+d.from, +d.to); },
+  "pf-cancel": () => { ui.dayPending = null; render(); },
+  "pf-count": d => {
+    const p = S.profile, v = +d.v; ui.dayPending = null;
+    p.weekdays = p.weekdays.includes(v) ? p.weekdays.filter(x => x !== v) : [...p.weekdays, v].sort((a, b) => a - b);
+    if (!p.weekdays.length) { p.weekdays = [v]; }
+    ACT["plan-gen"]();
+  },
+  "day-move": d => { const pd = S.plan.days[+d.i]; if (pd) movePlanDay(pd.wd, +d.v); },
+  "day-moveopen": d => { ui.open[d.i] = true; render(); },
   "pf": d => { S.profile[d.k] = isNaN(+d.v) ? d.v : +d.v; touch("profile"); render(); },
   "pf-preset": d => { S.profile.equip = [...PRESETS[d.v].eq]; touch("profile"); render(); },
   "pf-eq": d => { const p = S.profile; p.equip = p.equip.includes(d.v) ? p.equip.filter(x => x !== d.v) : [...p.equip, d.v]; touch("profile"); render(); },
@@ -2479,7 +2521,9 @@ document.addEventListener("click", ev => {
   const b = ev.target.closest("[data-act]"); if (!b) return;
   const a = b.dataset.act; if (!ACT[a]) return;
   if (b.tagName === "A") return;
-  ev.preventDefault(); ACT[a](b.dataset, b, ev);
+  ev.preventDefault();
+  try { ACT[a](b.dataset, b, ev); }
+  catch (err) { console.error(err); toast("Coś poszło nie tak: " + (err && err.message ? err.message : err) + ". Napisz mi, co kliknąłeś."); }
 });
 document.addEventListener("input", ev => {
   const t = ev.target;
