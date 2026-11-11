@@ -7,6 +7,10 @@ i dziennik ciężarów.
 Na start krótkie wprowadzenie (płeć, wiek, wzrost, waga, cel, aktywność, dni treningowe, sprzęt).
 Zakładka **Asystent** liczy kalorie (wzór Mifflina-St Jeora), deficyt lub nadwyżkę zależnie od celu,
 białko, tłuszcze i węglowodany, a po 2–3 tygodniach ważenia proponuje korektę kalorii.
+Jest też prosty dziennik jedzenia (kalorie i białko z danego dnia).
+
+Trening można zapisać na żywo (seria po serii) albo jednym stuknięciem jako zrobiony,
+także z wcześniejszego dnia. Zapisane treningi da się poprawić (data, ciężary, powtórzenia).
 
 Domyślny wygląd to tablica kredowa (styl Zeszyt w trybie ciemnym). Inne style (Talerze, Zegarek, jasny zeszyt) zmienisz w **Asystent → Ustawienia**.
 
